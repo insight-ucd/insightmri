@@ -17,7 +17,13 @@ import sys
 from pathlib import Path
 import subprocess
 from concurrent.futures import ProcessPoolExecutor, as_completed, wait
+import logging
 from utils import get_config, get_nii_dir
+
+logging.basicConfig(format='%(asctime)s,%(msecs)d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
+                    datefmt='%Y-%m-%d:%H:%M:%S',
+                    level=logging.DEBUG)
+log = logging.getLogger(__name__)
 
 
 def process_bet(source_file=None, source_suffix=".nii.gz", target_suffix="_bet.nii.gz"):
@@ -45,16 +51,19 @@ def process_registration(source_file=None, source_suffix="_reorient.nii.gz", tar
     REFERENCE_TEMPLATE = get_config().REFERENCE_TEMPLATE
     target_file = Path(source_file.parents[0] / source_file.name.replace(source_suffix, target_suffix))
 
-    cmd = ["flirt", "-in", source_file.as_posix(), "-out", target_file.as_posix(), "-ref", REFERENCE_TEMPLATE, *FLIRT_FLAGS.split(' ')]
+    cmd = ["flirt", "-in", source_file.as_posix(), "-out", target_file.as_posix(), "-ref", REFERENCE_TEMPLATE,
+           *FLIRT_FLAGS.split(' ')]
     print(cmd)
     subprocess.call(cmd)
     return target_file
+
 
 def process_pipeline(source_file):
     source_file = process_bet(source_file, ".nii.gz", "_bet.nii.gz")
     source_file = process_reorient(source_file, "_bet.nii.gz", "_reorient.nii.gz")
     source_file = process_registration(source_file, "_reorient.nii.gz", "_registered.nii.gz")
     return
+
 
 def main():
     nii_dir = get_nii_dir()
@@ -64,12 +73,11 @@ def main():
     with ProcessPoolExecutor() as executor:
         for source_file in files:
             print('working on', source_file)
-            #process_pipeline(source_file)
+            # process_pipeline(source_file)
             futures.append(executor.submit(process_pipeline, source_file))
 
     wait(futures)
     return
-
 
 
 if __name__ == '__main__':
