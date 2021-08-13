@@ -13,7 +13,15 @@ __maintainer__ = "Aonghus Lawlor"
 __email__ = "aonghus.lawlor@ucd.ie"
 __status__ = "Development"
 
+import logging
 from utils import initialise
+
+logging.basicConfig(format='%(asctime)s,%(msecs)d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
+                    datefmt='%Y-%m-%d:%H:%M:%S',
+                    level=logging.DEBUG)
+log = logging.getLogger(__name__)
+
+
 def main(clean_old=False):
     initialise(clean_old=clean_old)
     return
