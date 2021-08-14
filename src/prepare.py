@@ -15,6 +15,8 @@ __status__ = "Development"
 
 import logging
 from utils import initialise
+import argparse
+
 
 logging.basicConfig(format='%(asctime)s,%(msecs)d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
                     datefmt='%Y-%m-%d:%H:%M:%S',
@@ -27,4 +29,9 @@ def main(clean_old=False):
     return
 
 if __name__ == '__main__':
-    main(clean_old=True)
+    parser = argparse.ArgumentParser(description='prepare directory for stripping and registration')
+    parser.add_argument('-c', help='clean out the old files', action='store_true')
+
+    args = parser.parse_args()
+    log.info(f"{args} {args.c}")
+    main(clean_old=args.c)

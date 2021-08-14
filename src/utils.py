@@ -83,7 +83,7 @@ def get_config():
         root = Path(os.path.dirname(os.path.abspath(__file__)))
         try:
             with open(root / "../config.yml", 'r') as f:
-                log.info(f"reading config from {f}")
+                log.info(f"reading config from {f.name}")
                 c = yaml.safe_load(f)
                 CONFIG = munchify(c)
         except:
