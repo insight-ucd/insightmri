@@ -120,7 +120,7 @@ if __name__ == '__main__':
     parser.add_argument('--registration', help='perform registration', action='store_false')
 
     args = parser.parse_args()
-    log.info(f"{args} {args.c}")
+    log.info(f"{args}")
 
     main(do_bet=args.bet, do_reorient=args.reorient, do_registration=args.registration)
     sys.exit(1)
