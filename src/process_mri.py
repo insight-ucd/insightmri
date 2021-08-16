@@ -68,33 +68,36 @@ def process_pipeline(source_file, do_bet=False, do_reorient=False, do_registrati
 
     if do_bet == False:
         log.info("no registration")
-        return
-    source_file = process_bet(source_file, target_suffix="_bet.nii.gz")
-    if source_file.is_file():
-        log.info("created: {source_file}")
+        #return
     else:
-        log.info("failed to create {source_file}. Skip to next task")
-        return
+        source_file = process_bet(source_file, target_suffix="_bet.nii.gz")
+        if source_file.is_file():
+            log.info("created: {source_file}")
+        else:
+            log.info("failed to create {source_file}. Skip to next task")
+            return
 
     if do_reorient == False:
         log.info("no registration")
-        return
-    source_file = process_reorient(source_file, target_suffix="_reorient.nii.gz")
-    if source_file.is_file():
-        log.info("created: {source_file}")
+        #return
     else:
-        log.info("failed to create {source_file}. Skip to next task")
-        return
+        source_file = process_reorient(source_file, target_suffix="_reorient.nii.gz")
+        if source_file.is_file():
+            log.info("created: {source_file}")
+        else:
+            log.info("failed to create {source_file}. Skip to next task")
+            return
 
     if do_registration == False:
         log.info("no registration")
-        return
-    source_file = process_registration(source_file, target_suffix="_registered.nii.gz")
-    if source_file.is_file():
-        log.info("created: {source_file}")
+        #return
     else:
-        log.info("failed to create {source_file}. Skip to next task")
-        return
+        source_file = process_registration(source_file, target_suffix="_registered.nii.gz")
+        if source_file.is_file():
+            log.info("created: {source_file}")
+        else:
+            log.info("failed to create {source_file}. Skip to next task")
+            return
 
     return
 
@@ -104,9 +107,9 @@ def main(do_bet=False, do_reorient=False, do_registration=False, n_workers=0):
         n_workers = mp.cpu_count() - 1
     nii_dir = get_nii_dir()
 
-    files = list(Path(nii_dir).glob("Anonymized_-_*/Head_Demyelination/time_*/*.nii.gz"))
+    files = list(Path(nii_dir).glob("Anonymized_-_0*/Head_Demyelination/time_*/*.nii.gz"))
     futures = []
-    with ProcessPoolExecutor(n_workers=n_workers) as executor:
+    with ProcessPoolExecutor(max_workers=n_workers) as executor:
         for source_file in files:
             log.info(f'working on {source_file}')
             # process_pipeline(source_file)
