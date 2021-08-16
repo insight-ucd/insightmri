@@ -115,9 +115,9 @@ def main(do_bet=False, do_reorient=False, do_registration=False):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='prepare directory for stripping and registration')
-    parser.add_argument('--bet', help='perform brain extraction', action='store_false')
-    parser.add_argument('--reorient', help='perform reorientation', action='store_false')
-    parser.add_argument('--registration', help='perform registration', action='store_false')
+    parser.add_argument('--bet', help='perform brain extraction', action='store_true')
+    parser.add_argument('--reorient', help='perform reorientation', action='store_true')
+    parser.add_argument('--registration', help='perform registration', action='store_true')
 
     args = parser.parse_args()
     log.info(f"{args}")

@@ -2,7 +2,7 @@
 
 # this has to be the full path to the base directory eg:
 #SOURCE_DIR: "/Users/aonghus/SynologyDrive/CLEANER"
-SOURCE_DIR: "/Users/aonghus/work/insightmri/CLEANER"
+SOURCE_DIR: "/data/CLEANER"
 # the code will create $SOURCE_DIR_registered, $SOURCE_DIR_stripped, so it needs write permission to the directory
 #SOURCE_DIR = ""
 
@@ -14,4 +14,4 @@ BET_FLAGS: "-R -f 0.4 -g 0"
 
 FSLREORIENT2DSTD_FLAGS: ""
 FLIRT_FLAGS: "-bins 256 -cost corratio -searchrx 0 0 -searchry 0 0 -searchrz 0 0 -dof 12 -interp spline"
-REFERENCE_TEMPLATE: "/Users/aonghus/work/insightmri/templates/MNI152_T1_1mm.nii.gz"
+REFERENCE_TEMPLATE: "/data/insightmri/templates/MNI152_T1_1mm.nii.gz"
