@@ -19,6 +19,7 @@ import subprocess
 from concurrent.futures import ProcessPoolExecutor, as_completed, wait
 import logging
 import argparse
+import multiprocessing as mp
 from utils import get_config, get_nii_dir
 
 logging.basicConfig(format='%(asctime)s,%(msecs)d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
@@ -98,12 +99,14 @@ def process_pipeline(source_file, do_bet=False, do_reorient=False, do_registrati
     return
 
 
-def main(do_bet=False, do_reorient=False, do_registration=False):
+def main(do_bet=False, do_reorient=False, do_registration=False, n_workers=0):
+    if n_workers == 0:
+        n_workers = mp.cpu_count() - 1
     nii_dir = get_nii_dir()
 
     files = list(Path(nii_dir).glob("Anonymized_-_*/Head_Demyelination/time_*/*.nii.gz"))
     futures = []
-    with ProcessPoolExecutor() as executor:
+    with ProcessPoolExecutor(n_workers=n_workers) as executor:
         for source_file in files:
             log.info(f'working on {source_file}')
             # process_pipeline(source_file)
@@ -118,9 +121,10 @@ if __name__ == '__main__':
     parser.add_argument('--bet', help='perform brain extraction', action='store_true')
     parser.add_argument('--reorient', help='perform reorientation', action='store_true')
     parser.add_argument('--registration', help='perform registration', action='store_true')
+    parser.add_argument('--n_workers', help='number of processes', default=0, type=int)
 
     args = parser.parse_args()
     log.info(f"{args}")
 
-    main(do_bet=args.bet, do_reorient=args.reorient, do_registration=args.registration)
+    main(do_bet=args.bet, do_reorient=args.reorient, do_registration=args.registration, n_workers=args.n_workers)
     sys.exit(1)
