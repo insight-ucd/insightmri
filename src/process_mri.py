@@ -101,7 +101,7 @@ def process_pipeline(source_file, do_bet=False, do_reorient=False, do_registrati
 def main(do_bet=False, do_reorient=False, do_registration=False):
     nii_dir = get_nii_dir()
 
-    files = list(Path(nii_dir).glob("Anonymized_-_0*/Head_Demyelination/time_*/*.nii.gz"))
+    files = list(Path(nii_dir).glob("Anonymized_-_*/Head_Demyelination/time_*/*.nii.gz"))
     futures = []
     with ProcessPoolExecutor() as executor:
         for source_file in files:
