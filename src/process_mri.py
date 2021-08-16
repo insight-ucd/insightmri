@@ -72,9 +72,9 @@ def process_pipeline(source_file, do_bet=False, do_reorient=False, do_registrati
     else:
         source_file = process_bet(source_file, target_suffix="_bet.nii.gz")
         if source_file.is_file():
-            log.info("created: {source_file}")
+            log.info(f"created: {source_file}")
         else:
-            log.info("failed to create {source_file}. Skip to next task")
+            log.info(f"failed to create {source_file}. Skip to next task")
             return
 
     if do_reorient == False:
@@ -83,9 +83,9 @@ def process_pipeline(source_file, do_bet=False, do_reorient=False, do_registrati
     else:
         source_file = process_reorient(source_file, target_suffix="_reorient.nii.gz")
         if source_file.is_file():
-            log.info("created: {source_file}")
+            log.info(f"created: {source_file}")
         else:
-            log.info("failed to create {source_file}. Skip to next task")
+            log.info(f"failed to create {source_file}. Skip to next task")
             return
 
     if do_registration == False:
@@ -94,9 +94,9 @@ def process_pipeline(source_file, do_bet=False, do_reorient=False, do_registrati
     else:
         source_file = process_registration(source_file, target_suffix="_registered.nii.gz")
         if source_file.is_file():
-            log.info("created: {source_file}")
+            log.info(f"created: {source_file}")
         else:
-            log.info("failed to create {source_file}. Skip to next task")
+            log.info(f"failed to create {source_file}. Skip to next task")
             return
 
     return
