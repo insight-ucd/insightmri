@@ -65,7 +65,7 @@ def initialise(clean_old=False):
         r = list(map(lambda x: x.unlink(), files))
         print(r)
 
-    dirs = list(source_dir.glob("*/Head Demyelination/time_*"))
+    dirs = list(source_dir.glob("*/Head Demyelination/time_*/*"))
 
     for s_dir in dirs:
         t_dir = Path(s_dir.as_posix().replace(source_dir.as_posix(), nii_dir.as_posix(), 1))       # should be a better way to do this...
