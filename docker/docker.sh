@@ -1,1 +1,1 @@
-../../docker.sh
+docker push aonghuslawlor/insightfsl
