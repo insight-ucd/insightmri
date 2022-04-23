@@ -8,7 +8,7 @@ neurodocker generate docker \
 	    --ants version=2.3.1 \
 	    --dcm2niix method=source version=v1.0.20211006 \
 	    --fsl method=binaries version=6.0.3 \
-	    --miniconda version=latest use_env=base conda_install="nipype notebook six pyyaml" \
+	    --miniconda version=latest use_env=base conda_install="nipype notebook six pyyaml python-magic pydicom" \
 	    	    --user insight \
 	    > Dockerfile
-docker build --tag insightfsl - < Dockerfile
+#docker build --tag insightfsl - < Dockerfile
