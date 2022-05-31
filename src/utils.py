@@ -16,10 +16,12 @@ __status__ = "Development"
 
 import os
 import yaml
+import logging
+from nipype.interfaces.dcm2nii import Dcm2niix
 from munch import munchify
 from pathlib import Path
-import subprocess
-import logging
+from rescale_dicom import rescale_dicom
+
 
 logging.basicConfig(format='%(asctime)s,%(msecs)d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
                     datefmt='%Y-%m-%d:%H:%M:%S',
@@ -29,13 +31,20 @@ log = logging.getLogger(__name__)
 
 CONFIG = None
 
+
 def get_source_dir():
     source = get_config().SOURCE_DIR
     return source
 
+
 def get_nii_dir():
     source = get_config().SOURCE_DIR
     return f"{source}_nii"
+
+
+def get_replace_dir():
+    source = get_config().SOURCE_DIR
+    return f"{source}_replace"
 
 
 def get_registration_dir():
@@ -54,32 +63,47 @@ def initialise(clean_old=False):
     :return:
     """
     source_dir = Path(get_source_dir())
+    dir_structure = get_config().DIR_STRUCTURE
     nii_dir = Path(get_nii_dir())
+    replace_dir = Path(get_replace_dir())
     DCM2NIIX_FLAGS = get_config().DCM2NIIX_FLAGS
 
     nii_dir.mkdir(parents=True, exist_ok=True)
+    replace_dir.mkdir(parents=True, exist_ok=True)
 
-    if clean_old == True:
+    if clean_old:
         log.info("cleaning old files")
         files = filter(Path.is_file, nii_dir.glob("**/*"))
         r = list(map(lambda x: x.unlink(), files))
         print(r)
 
-    dirs = list(source_dir.glob("*/Head Demyelination/time_*/*"))
+    dirs = list(source_dir.glob(dir_structure))
 
     for s_dir in dirs:
-        t_dir = Path(s_dir.as_posix().replace(source_dir.as_posix(), nii_dir.as_posix(), 1))       # should be a better way to do this...
+        t_dir = Path(s_dir.as_posix().replace(source_dir.as_posix(), nii_dir.as_posix(), 1))
         t_dir = Path(t_dir.as_posix().replace(' ', '_'))
         t_dir.mkdir(parents=True, exist_ok=True)
-        cmd = ["dcm2niix", *DCM2NIIX_FLAGS.split(' '), "-o", t_dir.as_posix(), s_dir.as_posix()]
+
+        r_dir = Path(s_dir.as_posix().replace(source_dir.as_posix(), replace_dir.as_posix(), 1))
+        r_dir = Path(r_dir.as_posix().replace(' ', '_'))
+        r_dir.mkdir(parents=True, exist_ok=True)
+
+        input_dir = rescale_dicom(s_dir, r_dir)
+
+        dcm_converter = Dcm2niix()
+        dcm_converter.inputs.source_dir = input_dir
+        dcm_converter.inputs.args = DCM2NIIX_FLAGS
+        dcm_converter.inputs.output_dir = t_dir
+        log.info(f"DCM2NIIX version : {dcm_converter.version}")
         log.info(f"Converting [{s_dir}] => [{t_dir}]")
-        log.info(f"{' '.join(cmd)}")
-        subprocess.call(cmd)
+        log.info(f"Interface cmd : {dcm_converter.cmdline}")
+        dcm_converter.run()
     return
+
 
 def get_config():
     global CONFIG
-    if CONFIG == None:
+    if CONFIG is None:
         root = Path(os.path.dirname(os.path.abspath(__file__)))
         try:
             with open(root / "../config.yml", 'r') as f:
