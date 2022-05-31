@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 """
@@ -20,7 +20,7 @@ import logging
 from nipype.interfaces.dcm2nii import Dcm2niix
 from munch import munchify
 from pathlib import Path
-from rescale_dicom import rescale_dicom
+from rescale_dicom import rescale_dicom, clean_replace_dir
 
 
 logging.basicConfig(format='%(asctime)s,%(msecs)d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
@@ -39,22 +39,22 @@ def get_source_dir():
 
 def get_nii_dir():
     source = get_config().SOURCE_DIR
-    return f"{source}_nii"
+    return f"/tmp/{source}_nii"
 
 
 def get_replace_dir():
     source = get_config().SOURCE_DIR
-    return f"{source}_replace"
+    return f"/tmp/{source}_replace"
 
 
 def get_registration_dir():
     source = get_config().SOURCE_DIR
-    return f"{source}_registration"
+    return f"/tmp/{source}_registration"
 
 
 def get_brainextraction_dir():
     source = get_config().SOURCE_DIR
-    return f"{source}_brainextraction"
+    return f"/tmp/{source}_brainextraction"
 
 
 def initialise(clean_old=False):
@@ -98,6 +98,7 @@ def initialise(clean_old=False):
         log.info(f"Converting [{s_dir}] => [{t_dir}]")
         log.info(f"Interface cmd : {dcm_converter.cmdline}")
         dcm_converter.run()
+        clean_replace_dir(input_dir)
     return
 
 
