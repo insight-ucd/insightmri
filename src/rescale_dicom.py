@@ -29,8 +29,6 @@ def rescale_dicom(source_dir, rescale_dir=None, replace=False):
             log.debug(f"No Rescale Present : [{source_dir / file}] ")
         else:
             log.debug(f"Rescaling : [{source_dir / file}]")
-            #log.debug(f"Rescale Intercept : {dcm['RescaleIntercept']}, Rescale Slope: {dcm['RescaleSlope']}, Rescale Type: {dcm['RescaleType']}")
-            log.debug(f"Rescale Intercept : {dcm['RescaleIntercept']}")
             # extract the darkest and brightest pixel intensities in the rescale domain
             # darkest_pixel = window_center - 0.5*window_width
             # brightest_pixel = window_center + 0.5*window_width

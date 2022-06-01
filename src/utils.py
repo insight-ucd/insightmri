@@ -37,6 +37,10 @@ def get_source_dir():
     return source
 
 
+def get_dir_structure():
+    return get_config().DIR_STRUCTURE
+
+
 def get_nii_dir():
     source = get_config().SOURCE_DIR
     return f"/tmp/{source}_nii"
