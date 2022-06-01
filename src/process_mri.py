@@ -39,7 +39,7 @@ def process_bet(source_file=None, source_suffix=".nii.gz", target_suffix="_bet.n
     bet_converter = fsl.BET()
     bet_converter.inputs.in_file = source_file
     bet_converter.inputs.out_file = target_file
-    bet_converter.inputs.output_type = 'NIFTY_GZ'
+    bet_converter.inputs.output_type = 'NIFTI_GZ'
     bet_converter.inputs.args = BET_FLAGS
     if not SKIP_CMD:
         log.info(f"{bet_converter.cmdline}")
@@ -55,7 +55,7 @@ def process_reorient(source_file=None, source_suffix=".nii.gz", target_suffix="_
     reorient_converter.inputs.in_file = source_file
     reorient_converter.inputs.args = FSLREORIENT2DSTD_FLAGS
     reorient_converter.inputs.out_file = target_file
-    reorient_converter.inputs.output_type = 'NIFTY_GZ'
+    reorient_converter.inputs.output_type = 'NIFTI_GZ'
 
     if not SKIP_CMD:
         log.info(f"{reorient_converter.cmdline}")
@@ -73,7 +73,7 @@ def process_registration(source_file=None, source_suffix=".nii.gz", target_suffi
     flirt_converter.inputs.args = FLIRT_FLAGS
     flirt_converter.inputs.out_file = target_file
     flirt_converter.inputs.reference = REFERENCE_TEMPLATE
-    flirt_converter.inputs.output_type = 'NIFTY_GZ'
+    flirt_converter.inputs.output_type = 'NIFTI_GZ'
     if not SKIP_CMD:
         log.info(f"{flirt_converter.cmdline}")
         flirt_converter.run()
@@ -123,7 +123,7 @@ def main(do_bet=False, do_reorient=False, do_registration=False, n_workers=0):
         n_workers = mp.cpu_count() - 1
     nii_dir = get_nii_dir()
 
-    files = list(Path(nii_dir).glob(get_dir_structure()))
+    files = list(Path(nii_dir).glob(get_dir_structure()+'/*.nii.gz'))
     futures = []
     with ProcessPoolExecutor(max_workers=n_workers) as executor:
         for source_file in files:
