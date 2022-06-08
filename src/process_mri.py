@@ -14,29 +14,36 @@ __email__ = "aonghus.lawlor@ucd.ie"
 __status__ = "Development"
 
 import sys
-from pathlib import Path
 import subprocess
-from concurrent.futures import ProcessPoolExecutor, as_completed, wait
 import logging
 import argparse
 import multiprocessing as mp
-from utils import get_config, get_nii_dir
+from utils import get_config, get_nii_dir, get_dir_structure
+from pathlib import Path
+from concurrent.futures import ProcessPoolExecutor, as_completed, wait
+from nipype.interfaces import fsl
 
 logging.basicConfig(format='%(asctime)s,%(msecs)d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
                     datefmt='%Y-%m-%d:%H:%M:%S',
                     level=logging.DEBUG)
+
 log = logging.getLogger(__name__)
-SKIP_CMD=False
+SKIP_CMD = False
+
 
 def process_bet(source_file=None, source_suffix=".nii.gz", target_suffix="_bet.nii.gz"):
     BET_FLAGS = get_config().BET_FLAGS
 
     target_file = Path(source_file.parents[0] / source_file.name.replace(source_suffix, target_suffix))
     log.info(f"{source_file} -> {target_file}")
-    cmd = ["bet", source_file.as_posix(), target_file.as_posix(), *BET_FLAGS.split(' ')]
-    log.info(f"{' '.join(cmd)}")
-    if SKIP_CMD is False:
-        subprocess.call(cmd)
+    bet_converter = fsl.BET()
+    bet_converter.inputs.in_file = source_file
+    bet_converter.inputs.out_file = target_file
+    bet_converter.inputs.output_type = 'NIFTI_GZ'
+    bet_converter.inputs.args = BET_FLAGS
+    if not SKIP_CMD:
+        log.info(f"{bet_converter.cmdline}")
+        bet_converter.run()
     return target_file
 
 
@@ -44,10 +51,15 @@ def process_reorient(source_file=None, source_suffix=".nii.gz", target_suffix="_
     FSLREORIENT2DSTD_FLAGS = get_config().FSLREORIENT2DSTD_FLAGS
     target_file = Path(source_file.parents[0] / source_file.name.replace(source_suffix, target_suffix))
 
-    cmd = ["fslreorient2std", source_file.as_posix(), target_file.as_posix(), *FSLREORIENT2DSTD_FLAGS.split(' ')]
-    log.info(f"{' '.join(cmd)}")
-    if SKIP_CMD is False:
-        subprocess.call(cmd)
+    reorient_converter = fsl.Reorient2Std()
+    reorient_converter.inputs.in_file = source_file
+    reorient_converter.inputs.args = FSLREORIENT2DSTD_FLAGS
+    reorient_converter.inputs.out_file = target_file
+    reorient_converter.inputs.output_type = 'NIFTI_GZ'
+
+    if not SKIP_CMD:
+        log.info(f"{reorient_converter.cmdline}")
+        reorient_converter.run()
     return target_file
 
 
@@ -56,17 +68,21 @@ def process_registration(source_file=None, source_suffix=".nii.gz", target_suffi
     REFERENCE_TEMPLATE = get_config().REFERENCE_TEMPLATE
     target_file = Path(source_file.parents[0] / source_file.name.replace(source_suffix, target_suffix))
 
-    cmd = ["flirt", "-in", source_file.as_posix(), "-out", target_file.as_posix(), "-ref", REFERENCE_TEMPLATE,
-           *FLIRT_FLAGS.split(' ')]
-    log.info(f"{' '.join(cmd)}")
-    if SKIP_CMD is False:
-        subprocess.call(cmd)
+    flirt_converter = fsl.FLIRT()
+    flirt_converter.inputs.in_file = source_file
+    flirt_converter.inputs.args = FLIRT_FLAGS
+    flirt_converter.inputs.out_file = target_file
+    flirt_converter.inputs.reference = REFERENCE_TEMPLATE
+    flirt_converter.inputs.output_type = 'NIFTI_GZ'
+    if not SKIP_CMD:
+        log.info(f"{flirt_converter.cmdline}")
+        flirt_converter.run()
     return target_file
 
 
 def process_pipeline(source_file, do_bet=False, do_reorient=False, do_registration=False):
 
-    if do_bet == False:
+    if not do_bet :
         log.info("no registration")
         #return
     else:
@@ -77,7 +93,7 @@ def process_pipeline(source_file, do_bet=False, do_reorient=False, do_registrati
             log.info(f"failed to create {source_file}. Skip to next task")
             return
 
-    if do_reorient == False:
+    if not do_reorient:
         log.info("no registration")
         #return
     else:
@@ -88,7 +104,7 @@ def process_pipeline(source_file, do_bet=False, do_reorient=False, do_registrati
             log.info(f"failed to create {source_file}. Skip to next task")
             return
 
-    if do_registration == False:
+    if not do_registration:
         log.info("no registration")
         #return
     else:
@@ -107,7 +123,7 @@ def main(do_bet=False, do_reorient=False, do_registration=False, n_workers=0):
         n_workers = mp.cpu_count() - 1
     nii_dir = get_nii_dir()
 
-    files = list(Path(nii_dir).glob("Anonymized_-_0*/Head_Demyelination/time_*/*.nii.gz"))
+    files = list(Path(nii_dir).glob(get_dir_structure()+'/*.nii.gz'))
     futures = []
     with ProcessPoolExecutor(max_workers=n_workers) as executor:
         for source_file in files:

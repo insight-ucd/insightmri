@@ -6,11 +6,15 @@ SOURCE_DIR: "/data/CLEANER"
 # the code will create $SOURCE_DIR_registered, $SOURCE_DIR_stripped, so it needs write permission to the directory
 #SOURCE_DIR = ""
 
+# this is the directory structure to the DICOM files.
+# Replace with appropriate path pattern to convert dicom in SOURCE_DIR
+DIR_STRUCTURE : "*/Head Demyelination/time_*/*"
+
 DCM2NIIX: "/usr/local/bin/dcm2niix"
 DCM2NIIX_FLAGS: "-w 0 -z i"
 
 BET: "/usr/local/fsl/bin/bet"
-BET_FLAGS: "-R -f 0.4 -g 0"
+BET_FLAGS: "-R -f 0.4 -g 0 -m"
 
 FSLREORIENT2DSTD_FLAGS: ""
 FLIRT_FLAGS: "-bins 256 -cost corratio -searchrx 0 0 -searchry 0 0 -searchrz 0 0 -dof 12 -interp spline"
