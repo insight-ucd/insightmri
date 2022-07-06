@@ -26,24 +26,29 @@ from nipype.interfaces import fsl
 logging.basicConfig(format='%(asctime)s,%(msecs)d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
                     datefmt='%Y-%m-%d:%H:%M:%S',
                     level=logging.DEBUG)
-
 log = logging.getLogger(__name__)
-SKIP_CMD = False
+SKIP_CMD=False
 
 
 def process_bet(source_file=None, source_suffix=".nii.gz", target_suffix="_bet.nii.gz"):
     BET_FLAGS = get_config().BET_FLAGS
 
     target_file = Path(source_file.parents[0] / source_file.name.replace(source_suffix, target_suffix))
-    log.info(f"{source_file} -> {target_file}")
+    log.info(f"BET - {source_file} -> {target_file}")
+    flair_names = ['FLAIR', 'flair', 'Flair']
+
+    if any(x in source_file.as_posix() for x in flair_names):
+        FLAGS = get_config().FLAIR_BET_FLAGS
+    else:
+        FLAGS = BET_FLAGS
     bet_converter = fsl.BET()
     bet_converter.inputs.in_file = source_file
     bet_converter.inputs.out_file = target_file
     bet_converter.inputs.output_type = 'NIFTI_GZ'
-    bet_converter.inputs.args = BET_FLAGS
+    bet_converter.inputs.args = FLAGS
+    log.info(f"{bet_converter.cmdline}")
     if not SKIP_CMD:
-        log.info(f"{bet_converter.cmdline}")
-        bet_converter.run()
+        ret = bet_converter.run()
     return target_file
 
 
@@ -64,26 +69,31 @@ def process_reorient(source_file=None, source_suffix=".nii.gz", target_suffix="_
 
 
 def process_registration(source_file=None, source_suffix=".nii.gz", target_suffix="_registered.nii.gz"):
-    FLIRT_FLAGS = get_config().FLIRT_FLAGS
-    REFERENCE_TEMPLATE = get_config().REFERENCE_TEMPLATE
-    target_file = Path(source_file.parents[0] / source_file.name.replace(source_suffix, target_suffix))
+    if source_file.as_posix().endswith(source_suffix):
+        FLIRT_FLAGS = get_config().FLIRT_FLAGS
+        REFERENCE_TEMPLATE = get_config().REFERENCE_TEMPLATE
+        target_file = Path(source_file.parents[0] / source_file.name.replace(source_suffix, target_suffix))
+        mat_file = Path(source_file.parents[0]/source_file.name.replace(source_suffix, ".mat"))
 
-    flirt_converter = fsl.FLIRT()
-    flirt_converter.inputs.in_file = source_file
-    flirt_converter.inputs.args = FLIRT_FLAGS
-    flirt_converter.inputs.out_file = target_file
-    flirt_converter.inputs.reference = REFERENCE_TEMPLATE
-    flirt_converter.inputs.output_type = 'NIFTI_GZ'
-    if not SKIP_CMD:
-        log.info(f"{flirt_converter.cmdline}")
-        flirt_converter.run()
-    return target_file
+        flirt_converter = fsl.FLIRT()
+        flirt_converter.inputs.in_file = source_file
+        flirt_converter.inputs.args = FLIRT_FLAGS
+        flirt_converter.inputs.out_file = target_file
+        flirt_converter.inputs.reference = REFERENCE_TEMPLATE
+        flirt_converter.inputs.out_matrix_file = mat_file
+        flirt_converter.inputs.output_type = 'NIFTI_GZ'
+        if not SKIP_CMD:
+            log.info(f"{flirt_converter.cmdline}")
+            flirt_converter.run()
+        return target_file
+    else:
+        return None
 
 
 def process_pipeline(source_file, do_bet=False, do_reorient=False, do_registration=False):
 
     if not do_bet :
-        log.info("no registration")
+        log.info("no BET")
         #return
     else:
         source_file = process_bet(source_file, target_suffix="_bet.nii.gz")
@@ -94,7 +104,7 @@ def process_pipeline(source_file, do_bet=False, do_reorient=False, do_registrati
             return
 
     if not do_reorient:
-        log.info("no registration")
+        log.info("no Reorient")
         #return
     else:
         source_file = process_reorient(source_file, target_suffix="_reorient.nii.gz")
@@ -108,8 +118,11 @@ def process_pipeline(source_file, do_bet=False, do_reorient=False, do_registrati
         log.info("no registration")
         #return
     else:
-        source_file = process_registration(source_file, target_suffix="_registered.nii.gz")
-        if source_file.is_file():
+        source_suffix = "_bet.nii.gz"
+        source_file = process_registration(source_file,source_suffix=source_suffix, target_suffix="_registered.nii.gz")
+        if source_file is None:
+            log.info(f"File: {source_file} does not match provided suffix {source_suffix}")
+        elif source_file.is_file():
             log.info(f"created: {source_file}")
         else:
             log.info(f"failed to create {source_file}. Skip to next task")
@@ -122,8 +135,11 @@ def main(do_bet=False, do_reorient=False, do_registration=False, n_workers=0):
     if n_workers == 0:
         n_workers = mp.cpu_count() - 1
     nii_dir = get_nii_dir()
-
-    files = list(Path(nii_dir).glob(get_dir_structure()+'/*.nii.gz'))
+    dir_structure = get_dir_structure().replace(' ','_')
+    files = list(Path(nii_dir).glob(dir_structure+'/*.nii.gz'))
+    print("original files : ", len(files))
+    files = [file for file in files if "ROI" not in file.as_posix() and "EQ" not in file.as_posix()]
+    print("removing overlay files : ", len(files))
     futures = []
     with ProcessPoolExecutor(max_workers=n_workers) as executor:
         for source_file in files:
