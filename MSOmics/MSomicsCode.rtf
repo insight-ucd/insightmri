@@ -1,0 +1,677 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2639
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww22600\viewh13540\viewkind0
+\pard\tx566\tx1133\tx1700\tx2267\tx2834\tx3401\tx3968\tx4535\tx5102\tx5669\tx6236\tx6803\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 import pandas as pd\
+import numpy as np\
+from sklearn.model_selection import train_test_split, GridSearchCV\
+from sklearn.pipeline import Pipeline\
+from sklearn.ensemble import RandomForestRegressor\
+from sklearn.preprocessing import StandardScaler\
+from sklearn.impute import SimpleImputer\
+from sklearn.metrics import classification_report\
+import xgboost as xgb\
+from sklearn.svm import SVC\
+from sklearn.linear_model import LogisticRegression\
+from sklearn.neighbors import KNeighborsClassifier\
+import warnings\
+from scipy.stats import mode\
+import os\
+import numpy as np\
+import pandas as pd\
+import nibabel as nib\
+import random\
+from radiomics import featureextractor\
+________________________________________________________________________________________\
+\
+#Get Paths\
+start_path = "/home/pathtofile/\'93\
+includes = []\
+\
+data = []\
+\
+for num in includes:\
+    folder_path = os.path.join(start_path, str(num))\
+    \
+    image_path = os.path.join(folder_path, "FLAIR_01.nii.gz")\
+    NAWM_path = os.path.join(folder_path, "FLAIR_02_pve_1.nii.gz")\
+    label_path = os.path.join(folder_path, "ground_truth.nii.gz")\
+    \
+    data.append([num, image_path, NAWM_path, label_path])\
+\
+df = pd.DataFrame(data, columns=["Number", "Image_Path", "NAWM_Path", "Label_Path"])\
+\
+________________________________________________________________________________________\
+\
+def get_random_translation(sampling_region, mask2_label3):\
+    sampling_indices = np.argwhere(sampling_region)\
+    mask2_label3_indices = np.argwhere(mask2_label3)\
+\
+    # Pick a random index within the sampling_region\
+    random_index = random.choice(sampling_indices)\
+    \
+    # Compute the translation vector based on the picked index and the mask2_label3 centroid\
+    label3_centroid = np.mean(mask2_label3_indices, axis=0).astype(int)\
+    random_translation = random_index - label3_centroid\
+\
+    return random_translation\
+\
+# Define the function to process the masks\
+def process_masks(file1, file2):\
+    mask1 = nib.load(file1)\
+    mask2 = nib.load(file2)\
+\
+    # Access the data arrays\
+    mask1_data = mask1.get_fdata()\
+    mask2_data = mask2.get_fdata()\
+\
+    # Create a boolean mask where label 3 is True and others are False in mask2\
+    mask2_label3 = (mask2_data == 3)\
+\
+    # Create a boolean mask for non-zero values in mask1\
+    mask1_non_zero = (mask1_data != 0)\
+\
+    # Get the region where mask1 has non-zero values and mask2 doesn't have label 3\
+    sampling_region = np.logical_and(mask1_non_zero, np.logical_not(mask2_label3))\
+\
+    # Get a random translation that ensures the translated mask2_label3 stays within the sampling region\
+    random_translation = get_random_translation(sampling_region, mask2_label3)\
+\
+    # Translate mask2_label3\
+    mask2_label3_indices = np.argwhere(mask2_label3)\
+    translated_indices = mask2_label3_indices + random_translation\
+\
+    # Create a new data array with the same shape as mask1 and set the translated indices to True\
+    mask3_data = np.zeros_like(mask1_data, dtype=bool)\
+    mask3_data[translated_indices[:, 0], translated_indices[:, 1], translated_indices[:, 2]] = True\
+\
+    # Convert the boolean mask to the original data type of mask1\
+    mask3_data = mask3_data.astype(mask1_data.dtype)\
+\
+    # Create a new NIfTI image with the same metadata as the first mask\
+    mask3 = nib.Nifti1Image(mask3_data, mask1.affine, mask1.header)\
+\
+    # Save the new segmentation mask to a new file\
+    output_file = os.path.join("output_directory", f"\{index\}_controlsample.nii.gz")\
+    nib.save(mask3, output_file)\
+\
+________________________________________________________________________________________\
+\
+n = 3\
+for i in range(n):\
+    df[f"Sample_NAWMpath_\{i\}"] = None\
+\
+\
+\
+def random_translation_offset(range_value):\
+    return random.randint(-range_value, range_value)\
+\
+translation_offset_range = 42 \
+\
+for index, row in df.iterrows():\
+    print(f'getting samples for index \{index\}')\
+    try:\
+        file1 = row["NAWM_Path"]\
+        file2 = row["Label_Path"]\
+\
+        mask1 = nib.load(file1)\
+        mask2 = nib.load(file2)\
+\
+        mask1_data = mask1.get_fdata()\
+        mask2_data = mask2.get_fdata()\
+\
+        mask1_non_zero = (mask1_data != 0)\
+        sampling_region = np.logical_and(mask1_non_zero, np.logical_not(mask2_data))\
+\
+        for i in range(n):\
+            # Calculate the centroid of the sampling region and mask\
+            sampling_region_centroid = np.mean(np.argwhere(sampling_region), axis=0)\
+            mask2_centroid = np.mean(np.argwhere(mask2_data), axis=0)\
+            print(f"Sampling region centroid: \{sampling_region_centroid\}")\
+            print(f"Mask2 centroid: \{mask2_centroid\}")\
+\
+            # Calculate the translation\
+            translation = np.round(sampling_region_centroid - mask2_centroid).astype(int)\
+            random_offset = np.array([random_translation_offset(translation_offset_range),\
+                                      random_translation_offset(translation_offset_range),\
+                                      random_translation_offset(translation_offset_range)])\
+            print(f"Random offset: \{random_offset\}")\
+            translation += random_offset\
+            print(f"Translation: \{translation\}")\
+\
+            mask2_indices = np.argwhere(mask2_data)\
+            translated_indices = mask2_indices + translation\
+\
+            mask3_data = np.zeros_like(mask1_data, dtype=bool)\
+            mask3_data[translated_indices[:, 0], translated_indices[:, 1], translated_indices[:, 2]] = True\
+\
+            # Remove parts of the mask3_data that lie outside the sampling region\
+            mask3_data = np.logical_and(mask3_data, sampling_region)\
+\
+            mask3_data = mask3_data.astype(mask1_data.dtype)\
+\
+            mask3 = nib.Nifti1Image(mask3_data, mask1.affine, mask1.header)\
+\
+            output_file = os.path.join("output_directory", f"\{os.path.basename(file1)\}_\{index\}_translated_\{i\}.nii.gz")\
+            print(f"Saving output file: \{output_file\}")\
+            nib.save(mask3, output_file)\
+\
+            # Store the output file path in the dataframe\
+            df.loc[index, f"Sample_NAWMpath_\{i\}"] = output_file\
+    except Exception as e:\
+        print(f' index \{index\} failed due to error: \{e\}')\
+\
+\
+________________________________________________________________________________________\
+\
+# Instantiate the extractor\
+extractor = featureextractor.RadiomicsFeatureExtractor()\
+\
+print('Extraction parameters:\\n\\t', extractor.settings)\
+print('Enabled filters:\\n\\t', extractor.enabledImagetypes)\
+print('Enabled features:\\n\\t', extractor.enabledFeatures)\
+\
+\
+\
+for index, row in df1.iterrows():\
+    imagepath = row['Image_Path']\
+    labelpath = row['Label_Path']\
+    id_results = []\
+\
+    try:\
+            # Extract features\
+        result = extractor.execute(imagepath, labelpath)\
+        id_results.append(result)\
+    except ValueError as e:\
+        print(f"Error encountered while processing labelpath \{labelpath\}: \{e\}")\
+\
+    # Add the ID to each result dictionary\
+    for res in id_results:\
+        res['Number'] = row['Number']\
+\
+    # Append the results of the current ID to the main results list\
+    results.extend(id_results)\
+\
+# Convert the list of dictionaries to a pandas DataFrame\
+results_df = pd.DataFrame(results)\
+\
+\
+________________________________________________________________________________________\
+\
+THIS IS REPEATED FOR THE CONTROLS AND THE PRELESIONS\
+EACH GET THEIR OWN DF AND THE CONTROLS ARE AVERAGED\
+THE DF CAN BE FILTERED FOR ONLY THE VARIABLES THAT ARE NEEDED\
+THE RESULT IS SAVED TO FILE\
+\
+for col in selected_columns:\
+    df5[col] = (df4[col] + df2[col] + df3[col]) / 3\
+\
+# Copy the remaining columns without averaging\
+for col in df2.columns.difference(selected_columns):\
+    df5[col] = df2[col]\
+________________________________________________________________________________________\
+\
+df = pd.read_csv('sResults.csv')\
+random_seed = 42\
+\
+________________________________________________________________________________________\
+\
+\
+def split_by_id(df, test_size=0.2):\
+    unique_ids = df['ID'].unique()\
+    train_ids, test_ids = train_test_split(unique_ids, test_size=test_size, random_state=random_seed)\
+    train_df = df[df['ID'].isin(train_ids)]\
+    test_df = df[df['ID'].isin(test_ids)]\
+    return train_df, test_df\
+\
+train_df, test_df = split_by_id(df)\
+\
+X_train = train_df.drop(['ID', 'target'], axis=1)\
+y_train = train_df['target']\
+X_test = test_df.drop(['ID', 'target'], axis=1)\
+y_test = test_df['target']\
+\
+________________________________________________________________________________________\
+\
+\
+# Define classifiers and their hyperparameters\
+classifiers = \{\
+    'XGBoost': (xgb.XGBClassifier(random_state=random_seed), \{\
+    'classifier__learning_rate': [0.01, 0.1, 0.2],\
+    'classifier__max_depth': [4, 6, 8],\
+    'classifier__n_estimators': [50, 100, 200],\
+    'classifier__min_child_weight': [1, 3, 5],\
+    'classifier__gamma': [0, 0.1, 0.2],\
+    'classifier__subsample': [0.5, 0.8, 1],\
+    'classifier__colsample_bylevel': [0.5, 0.8, 1]\}),\
+    'SVC': (SVC(random_state=random_seed), \{'classifier__C': [1, 10], 'classifier__kernel': ['linear', 'rbf']\}),\
+    'Logistic Regression': (LogisticRegression(random_state=random_seed), \{'classifier__C': [1, 10], 'classifier__penalty': ['l1', 'l2'], 'classifier__solver': ['liblinear']\}),\
+    'KNN': (KNeighborsClassifier(), \{'classifier__n_neighbors': [3, 5, 7]\})\
+\}\
+________________________________________________________________________________________\
+# Iterate over classifiers\
+counter = 1\
+for name, (classifier, params) in classifiers.items():\
+    print(f"Iteration \{counter\}: Training \{name\}")\
+    counter += 1\
+    # Create a pipeline\
+    pipeline = Pipeline([\
+        ('imputer', SimpleImputer(missing_values=np.nan, strategy='most_frequent')),\
+        ('scaler', StandardScaler()),\
+        ('classifier', classifier)\
+    ])\
+\
+    # Perform GridSearchCV\
+    grid_search = GridSearchCV(pipeline, param_grid=params, cv=5)\
+    grid_search.fit(X_train, y_train)\
+    \
+    # Make predictions on the test set\
+    y_pred = grid_search.predict(X_test)\
+    \
+    # Evaluate the classifier using classification_report\
+    print(f"\{name\} Classification Report:")\
+    print(classification_report(y_test, y_pred))\
+    print(f"Best Parameters: \{grid_search.best_params_\}")\
+    print("=======================================")\
+\
+\
+________________________________________________________________________________________\
+\
+misclassified_cases = []\
+for i in range(len(y_test)):\
+    if y_pred[i] != y_test[i]:\
+        misclassified_cases.append(i)\
+\
+print("Misclassified cases:")\
+for case in misclassified_cases:\
+    print(f"Case index: \{case\}, True label: \{y_test[case]\}, Predicted label: \{y_pred[case]\}")\
+\
+\
+________________________________________________________________________________________\
+\
+exvaldf = pd.read_csv(\'91EXTERNALDATA/ccsv)\
+X_test = exvaldf.iloc[:, :-2]\
+X_test\
+y_test = exvaldf['target']\
+y_test\
+\
+AND REPEAT CLASSIFICATION\
+________________________________________________________________________________________\
+# Extract the best parameters for XGBoost\
+if isinstance(grid_search.best_estimator_.named_steps['classifier'], xgb.XGBClassifier):\
+    # Get the feature importance\
+    importance = grid_search.best_estimator_.named_steps['classifier'].get_booster().get_score(importance_type='gain')\
+\
+    # Convert the feature importance into a DataFrame and sort it by importance\
+    importance_df = pd.DataFrame(list(importance.items()), columns=['Feature', 'Importance']).sort_values('Importance', ascending=False)\
+\
+    # Display the feature importance\
+    print("Feature Importance:")\
+    print(importance_df)\
+\
+# Extract the best parameters for XGBoost\
+xgb_best_params = \{'learning_rate': 0.2,\
+                   'max_depth': 6,\
+                   'n_estimators': 200,\
+                   'min_child_weight': 1,\
+                   'gamma': 0.1,\
+                   'subsample': 0.8,\
+                   'colsample_bylevel': 1\}\
+\
+# Train the XGBoost model using the best parameters\
+xgb_model = xgb.XGBClassifier(random_state=random_seed, **xgb_best_params)\
+xgb_model.fit(X_train, y_train)\
+\
+# Get feature importance based on information gain\
+feature_importance = xgb_model.get_booster().get_score(importance_type='gain')\
+\
+# Convert feature importance into a DataFrame and sort it by importance\
+feature_importance_df = pd.DataFrame(list(feature_importance.items()), columns=['feature', 'importance'])\
+feature_importance_df = feature_importance_df.sort_values(by='importance', ascending=False)\
+\
+# Display the feature importance\
+print(feature_importance_df)\
+________________________________________________________________________________________\
+\
+#INTENSITY BASELINE\
+\
+def avg_pixel_intensity(df: pd.DataFrame) -> pd.Series:\
+    avg_intensities = []\
+\
+    for i, row in df.iterrows():\
+    \
+        print(f'Processing image \{i+1\} of \{len(df)\}...')\
+\
+        # Load MRI and segmentation data\
+        mri = nib.load(row['imagepath']).get_fdata()\
+        seg = nib.load(row['NAWMpath']).get_fdata()\
+\
+        # The mask should contain 0s and 1s, where 1 indicates the segmentation area\
+        masked_mri = mri * seg\
+\
+        # Compute average pixel intensity\
+        avg_intensities.append(np.mean(masked_mri[seg == 1]))\
+\
+    return pd.Series(avg_intensities)\
+\
+df = pd.read_csv('/home/PATHTO.csv')\
+\
+def avg_pixel_intensity_1(df: pd.DataFrame) -> pd.Series:\
+    avg_intensities = []\
+\
+    for i, row in df.iterrows():\
+    \
+        print(f'Processing image \{i+1\} of \{len(df)\}...')\
+        \
+        try:\
+\
+        # Load MRI and segmentation data\
+            mri = nib.load(row['imagepath']).get_fdata()\
+            seg = nib.load(row['labelpath']).get_fdata()\
+\
+        # The mask should contain 0s and 1s, where 1 indicates the segmentation area\
+            masked_mri = mri * seg\
+\
+        # Compute average pixel intensity\
+            avg_intensities.append(np.mean(masked_mri[seg == 1]))\
+            \
+        except:\
+            print(f'failed \{i+1\} of \{len(df)\}...')\
+\
+    return pd.Series(avg_intensities)\
+\
+average_intensitiesPrelesion = avg_pixel_intensity_1(df)\
+\
+AND REPEAT FOR CONTROLS\
+\
+from scipy import stats\
+\
+# Assuming average_intensitiesNAWM and average_intensitiesOther are outputs\
+t_statistic, p_value = stats.ttest_ind(average_intensitiesNAWM, average_intensitiesPrelesion)\
+\
+print(f'T-statistic: \{t_statistic\}\\nP-value: \{p_value\}')\
+\
+# Create DataFrame for NAWM\
+df_NAWM = pd.DataFrame(average_intensitiesNAWM, columns=['average_intensity'])\
+df_NAWM['label'] = 0\
+\
+# Create DataFrame for Prelesion\
+df_Prelesion = pd.DataFrame(average_intensitiesPrelesion, columns=['average_intensity'])\
+df_Prelesion['label'] = 1\
+\
+# Combine the two DataFrames\
+df_combined = pd.concat([df_NAWM, df_Prelesion])\
+\
+import xgboost as xgb\
+\
+X_train = df_combined['average_intensity'].values.reshape(-1, 1)  # features\
+y_train = df_combined['label'].values  # targets\
+\
+#  df_combined contains the 'average_intensity' and 'label'\
+X_test = Qdf_combined['average_intensity'].values.reshape(-1, 1)  # features\
+y_test = Qdf_combined['label'].values  # targets\
+\
+# Split the data into training and test sets\
+#X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)\
+\
+# Create and train the SVC\
+model = xgb.XGBClassifier().fit(X_train, y_train)\
+\
+from sklearn.metrics import classification_report\
+\
+# Make predictions on the test set\
+y_pred = model.predict(X_test)\
+\
+# Print the classification report\
+print(classification_report(y_test, y_pred))\
+\
+________________________________________________________________________________________\
+FOR THE PROBABILITY MAP\
+\
+import joblib\
+model = joblib.load('model.pkl')\
+\
+#get the slices\
+\
+image_path = '/home/INSERTPATH/.nii.gz'\
+image = nib.load(image_path)\
+image_data = image.get_fdata()\
+slice_index = 92\
+slice_data = image_data[:, :, slice_index]\
+plt.imshow(slice_data, cmap='gray')\
+plt.axis('off')  # Optional: remove axis ticks and labels\
+plt.show()\
+\
+\
+image_path2 = '/home/FLAIR.nii.gz'\
+image2 = nib.load(image_path2)\
+image_data2 = image2.get_fdata()\
+slice_index2 = 92\
+slice_data2 = image_data2[:, :, slice_index]\
+plt.imshow(slice_data2, cmap='gray')\
+plt.axis('off')  # Optional: remove axis ticks and labels\
+plt.show()\
+\
+import numpy as np\
+import matplotlib.pyplot as plt\
+from skimage.util.shape import view_as_windows\
+\
+# Set patch size\
+patch_size = (32, 32)  # adjust as needed\
+\
+# Extract patches from the slice\
+patches = view_as_windows(slice_data, patch_size)\
+\
+# Instantiate the extractor\
+from radiomics import featureextractor\
+extractor = featureextractor.RadiomicsFeatureExtractor()\
+\
+print('Extraction parameters:\\n\\t', extractor.settings)\
+print('Enabled filters:\\n\\t', extractor.enabledImagetypes)\
+print('Enabled features:\\n\\t', extractor.enabledFeatures)\
+\
+probabilities = np.zeros((patches.shape[0], patches.shape[1]))\
+mri_slice = slice_data\
+\
+\
+________________________________________________________________________________________\
+\
+import SimpleITK as sitk\
+from skimage.util import view_as_windows\
+\
+# Set patch and stride size\
+patch_size = (32, 32)  # adjust as needed\
+stride = (31, 31)  # adjust as needed\
+\
+# Extract overlapping patches from the slice\
+patches = view_as_windows(mri_slice, patch_size, step=stride)\
+\
+# Initialize an empty array for the probabilities\
+probabilities = np.zeros((patches.shape[0], patches.shape[1]))\
+\
+# Function to extract features from a patch\
+def extract_features(patch):\
+    # Create a SimpleITK image from the patch\
+    patch_img = sitk.GetImageFromArray(patch)\
+    \
+    # Create a corresponding segmentation mask with a border of zeros\
+    mask_data = np.ones(patch.shape)\
+    mask_data[0, :] = mask_data[-1, :] = mask_data[:, 0] = mask_data[:, -1] = 0  # Set a border of zeros\
+\
+    patch_mask = sitk.GetImageFromArray(mask_data)\
+    \
+    # Use PyRadiomics to extract the features\
+    result = extractor.execute(patch_img, patch_mask)  \
+    \
+    # Get the feature values\
+    features = np.array(list(result.values())[22:])  # Skip the first 23 entries which are metadata\
+    \
+    return features\
+\
+\
+# For each patch\
+for i in range(patches.shape[0]):\
+    for j in range(patches.shape[1]):\
+        patch = patches[i, j]\
+        \
+        # Extract radiomic features using PyRadiomics\
+        features = extract_features(patch)\
+        \
+        # Predict the probability of being a prelesion\
+        probability = model.predict_proba(features.reshape(1, -1))[:, 1]\
+        probabilities[i, j] = probability\
+        \
+probabilities1 = [(1 - prob) for  prob in probabilities]\
+# Visualize the probability map\
+plt.imshow(probabilities1, cmap='hot', interpolation='nearest')\
+plt.colorbar(label='Probability of Prelesion')\
+plt.show()\
+\
+\
+________________________________________________________________________________________\
+\
+\
+plt.figure(figsize=(10, 10))\
+\
+# Display the MRI slice in grayscale\
+plt.imshow(mri_slice, cmap='gray')\
+\
+# Overlay the probability map, using a colormap that goes from transparent to colored\
+cmap = plt.cm.get_cmap('hot')  \
+cmap._init()  # create the _lut array, with rgba values\
+alphas = np.linspace(0, 1, cmap.N + 3)  # create alpha array\
+cmap._lut[:, -1] = alphas  # set the alpha values in the colormap's _lut array\
+\
+plt.imshow(probabilities_upsampled, cmap=cmap, interpolation='nearest', vmin=0, vmax=1)\
+plt.colorbar(label='Probability of Prelesion')\
+\
+plt.show()\
+\
+# Set a threshold for the MRI slice\
+mri_threshold = 100  # adjust as needed\
+\
+# Create a binary mask for the regions of the MRI slice above the threshold\
+mri_mask = mri_slice > mri_threshold\
+\
+# Apply the mask to the upsampled probability map\
+masked_probabilities = mri_mask * probabilities_upsampled\
+\
+plt.figure(figsize=(10, 10))\
+\
+# Display the MRI slice in grayscale\
+plt.imshow(mri_slice, cmap='gray')\
+\
+# Overlay the masked probability map\
+cmap = plt.cm.get_cmap('hot_r') \
+cmap._init()  # create the _lut array, with rgba values\
+\
+# Change the start point of alphas to 0.7\
+alphas = np.linspace(1, 0.9, cmap.N + 3)  # create alpha array\
+cmap._lut[:, -1] = alphas  # set the alpha values in the colormap's _lut array\
+\
+plt.imshow(masked_probabilities, cmap=cmap, interpolation='nearest', vmin=0.01, vmax=0.2)\
+plt.colorbar(label='Probability of Prelesion')\
+\
+plt.show()\
+\
+________________________________________________________________________________________\
+\
+import matplotlib.pyplot as plt\
+import matplotlib.gridspec as gridspec\
+\
+# Create a gridspec object\
+fig = plt.figure(figsize=(20, 6))  # increase the figure size\
+gs = gridspec.GridSpec(1, 3, width_ratios=[1, 1.5, 1])  # adjust the third value to change the width of the third image\
+\
+# Plot 1\
+ax0 = plt.subplot(gs[0, 0])\
+ax0.imshow(np.rot90(slice_data), cmap='gray')\
+ax0.axis('off')  # Optional: remove axis ticks and labels\
+ax0.set_title('Time Point 1')\
+\
+# Plot 2\
+ax2 = plt.subplot(gs[0, 1])\
+mri_threshold = 1000  # adjust as needed \
+mri_mask = mri_slice > mri_threshold\
+masked_probabilities = mri_mask * probabilities_upsampled * 100\
+masked_probabilities[masked_probabilities > 9] = 0  # Set probabilities over 9 to 0\
+\
+ax2.imshow(np.rot90(mri_slice), cmap='gray')\
+cmap = plt.cm.get_cmap('inferno')  \
+cmap._init()  # create the _lut array, with rgba values\
+alphas = np.linspace(1, 0.9, cmap.N + 3)  # create alpha array\
+cmap._lut[:, -1] = alphas  # set the alpha values in the colormap's _lut array\
+img3 = ax2.imshow(np.rot90(masked_probabilities/10), cmap=cmap, interpolation='nearest', vmin=0, vmax=1) # Here we divide the masked_probabilities by 10 to bring the range back to 0-1\
+ax2.axis('off')\
+ax2.set_title('Predicted at Risk Areas at Time Point 1')\
+\
+# Create a vertical colorbar for the third plot\
+cbar = fig.colorbar(img3, ax=ax2, label='Relative Probability of New lesion', ticks=np.arange(0, 1.1, 0.1))\
+cbar.ax.set_yticklabels(np.arange(0, 11, 1))  # set the colorbar labels to 0-10\
+\
+# Plot 3\
+ax1 = plt.subplot(gs[0, 2])\
+ax1.imshow(np.rot90(slice_data2), cmap='gray')\
+ax1.axis('off')  # Optional: remove axis ticks and labels\
+ax1.set_title('Time Point 2')\
+\
+plt.tight_layout()  # Optional: improve layout\
+\
+# Save the figure\
+plt.savefig('R_Proba_figure_Corr10.png', dpi=300, bbox_inches='tight')\
+\
+plt.show()\
+________________________________________________________________________________________\
+\
+\
+#GET THE AVERAGE LESION SIZE\
+\
+# Define the function to calculate the volume of a NIFTI file\
+def calculate_volume(nifti_file, voxel_volume):\
+    # Load NIFTI file\
+    img = nib.load(nifti_file)\
+    \
+    # Get data as numpy array\
+    data = img.get_fdata()\
+    \
+    # Count the number of non-zero voxels (segmented voxels)\
+    num_voxels = (data > 0).sum()\
+    \
+    # Multiply the number of voxels by the volume of a single voxel\
+    volume = num_voxels * voxel_volume\
+    \
+    return volume\
+\
+# Specify the volume of a single voxel\
+voxel_volume = 0.01  # example value\
+\
+# Load DataFrame\
+#df = pd.read_csv('path_dataframe.csv') \
+\
+# Initialize a list to store the relative volumes\
+relative_volumes = []\
+\
+# Iterate over the rows of the DataFrame\
+for idx, row in df.iterrows():\
+    nifti_file1 = row['NAWMpath']\
+    nifti_file2 = row['labelpath']\
+\
+    # Calculate the volumes\
+    volume1 = calculate_volume(nifti_file1, voxel_volume)\
+    volume2 = calculate_volume(nifti_file2, voxel_volume)\
+    volume3 = volume2/volume1\
+\
+    # Append the relative volume to the list\
+    relative_volumes.append(volume3)\
+\
+# Convert the list to a new column in the DataFrame\
+df['relative_volume'] = relative_volumes\
+\
+# Check the result\
+print(df)\
+________________________________________________________________________________________\
+\
+}
